@@ -1,7 +1,7 @@
 /** SPDX-License-Identifier: MIT
  ******************************************************************************
  * QRSVG
- * Version 1.0
+ * Version 1.0.1
  * https://fietkau.software/qr
  * Copyright (c) Julian Fietkau
  *
@@ -249,9 +249,9 @@ function calculateDotsOrMosaicContour(bitmask, margin, style) {
     for(let x = 0; x < bitmask.width; x++) {
       if(bitmask.width > 16 && bitmask.height > 16) {
         // Check if we are inside a PDP area, because they have already been handled separately.
-        if((x < 7 + margin && y < 7 + margin) ||
-           (x < 7 + margin && y > bitmask.height - margin - 7) ||
-           (x > bitmask.width - margin - 7 && y < 7 + margin)) {
+        if((x < 8 && y < 8) ||
+           (x < 8 && y > bitmask.height - 8) ||
+           (x > bitmask.width - 8 && y < 8)) {
           continue;
         }
       }
@@ -367,9 +367,9 @@ function calculateShapeContour(bitmask, margin, style) {
     for(let x = 0; x < width; x++) {
       if(bitmask.width > 16 && bitmask.height > 16) {
         // Check if we are inside a PDP area, because they have already been handled separately.
-        if((x < 7 + margin && y < 7 + margin) ||
-           (x < 7 + margin && y > bitmask.height - margin - 7) ||
-           (x > bitmask.width - margin - 7 && y < 7 + margin)) {
+        if((x < 8 && y < 8) ||
+           (x < 8 && y > bitmask.height - 8) ||
+           (x > bitmask.width - 8 && y < 8)) {
           continue;
         }
       }
