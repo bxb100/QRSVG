@@ -414,7 +414,7 @@ function calculateTileStyleContour(bitmask, margin, style) {
           let size = 0.9; // relative to grid size
           let maxAngle = Math.PI * 0.03;
           let angle = (prng.next() * 2 - 1) * maxAngle;
-          newPathSpec.push('M' + (x + 1) + ' ' + (y + 1));
+          newPathSpec.push('M' + (x + margin) + ' ' + (y + margin));
           let tileCorners = [
             rotatePoint(0.5 - (size / 2), 0.5 - (size / 2), angle),
             rotatePoint(0.5 + (size / 2), 0.5 - (size / 2), angle),
