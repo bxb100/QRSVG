@@ -1,7 +1,7 @@
 /** SPDX-License-Identifier: MIT
  ******************************************************************************
  * QRSVG
- * Version 1.0.1
+ * Version 1.1
  * https://fietkau.software/qr
  * Copyright (c) Julian Fietkau
  *
@@ -228,7 +228,7 @@ function compactPathSpec(oldPathSpec) {
   for(let step of oldPathSpec.slice(1)) {
     let prev = newPathSpec[newPathSpec.length - 1];
     if((step[0] == 'h' || step[0] == 'v') && step[0] == prev[0]) {
-      let distance = parseFloat(prev.substring(1), 10) + parseFloat(step.substring(1), 10);
+      let distance = parseFloat(prev.substring(1)) + parseFloat(step.substring(1));
       newPathSpec[newPathSpec.length - 1] = step[0] + distance;
     } else if(step[0] == 'm' && (prev[0] == 'm' || prev[0] == 'M')) {
       let prevPos = prev.substring(1).split(' ').map(c => parseFloat(c));
@@ -689,15 +689,15 @@ function calculateContour(bitmask, margin = 1, style = 'basic') {
 // elements will be created within containing the PDP inner and
 // outer parts, dots, and other shapes. See a few lines below for
 // the list of valid styles.
-function render(bitmask, renderTarget, style = 'basic') {
+function render(bitmask, renderTarget, style = 'basic', margin = 1) {
   if(!['basic', 'rounded', 'dots', 'mosaic', 'confetti', 'scanlines', 'jitter-light', 'jitter-heavy'].includes(style)) {
     throw Error('Unsupported render style: ' + style);
   }
-  renderTarget.setAttribute('viewBox', '0 0 ' + (bitmask.width + 2) + ' ' + (bitmask.height + 2));
+  renderTarget.setAttribute('viewBox', '0 0 ' + (bitmask.width + 2 * margin) + ' ' + (bitmask.height + 2 * margin));
   while(renderTarget.firstChild) {
     renderTarget.firstChild.remove();
   }
-  let contours = qrsvg.calculateContour(bitmask, 1, style);
+  let contours = qrsvg.calculateContour(bitmask, margin, style);
   for(let contourType in contours) {
     let path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', contours[contourType].join(''));

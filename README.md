@@ -9,4 +9,4 @@ this code does not contain an actual QR code creator – it expects to receive
 the 2D QR code as a bitmask for its input. See the project website for a
 demo and more information.
 
-Version 1.0 – https://fietkau.software/qr
+Version 1.1 – https://fietkau.software/qr
