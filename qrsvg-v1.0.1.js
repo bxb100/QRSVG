@@ -123,7 +123,7 @@ class PRNG {
 // Used by `rounded` and `dots` styles.
 function makePathSpecRound(oldPathSpec) {
   let isInnerContour;
-  let newPathSpec = new Array();
+  let newPathSpec = [];
   for(let i = 0; i < oldPathSpec.length; i++) {
     if(oldPathSpec[i].startsWith('M')) {
       let coords = oldPathSpec[i].substring(1).split(' ').map(c => parseInt(c, 10));
@@ -228,7 +228,7 @@ function compactPathSpec(oldPathSpec) {
   for(let step of oldPathSpec.slice(1)) {
     let prev = newPathSpec[newPathSpec.length - 1];
     if((step[0] == 'h' || step[0] == 'v') && step[0] == prev[0]) {
-      let distance = parseInt(prev.substring(1), 10) + parseInt(step.substring(1), 10);
+      let distance = parseFloat(prev.substring(1), 10) + parseFloat(step.substring(1), 10);
       newPathSpec[newPathSpec.length - 1] = step[0] + distance;
     } else if(step[0] == 'm' && (prev[0] == 'm' || prev[0] == 'M')) {
       let prevPos = prev.substring(1).split(' ').map(c => parseFloat(c));
@@ -239,6 +239,93 @@ function compactPathSpec(oldPathSpec) {
     }
   }
   return newPathSpec;
+}
+
+// Special case method to calculate contours for the styles
+// (currently only scanlines) where shapes follow the horizontal
+// image grid.
+function calculateHorizontalStyleContour(bitmask, margin, style) {
+  if(style != 'scanlines') {
+    throw Error('Unsupported horizontal render style: ' + style);
+  }
+  let contour = new Contour();
+  let lineOffWidth = 0.06;
+  let lineOnWidth = 0.9;
+  for(let y = 0; y < bitmask.height; y++) {
+    let start = 0;
+    let end = bitmask.width;
+    if(bitmask.width > 16 && bitmask.height > 16) {
+      // Check if we are inside a PDP area, because they have already been handled separately.
+      if(y < 8) {
+        start = 8;
+        end = bitmask.width - 8;
+      } else if(y > bitmask.height - 8) {
+        start = 8;
+      }
+    }
+    // We need to slightly move the "off" scanline from the vertical middle to make
+    // the code easier to scan. Vertical displacement:
+    let vOffDisplace = 0.1;
+    let newShapePathSpec = [];
+    let reversePathSpec = [];
+    let newDotPathSpec = [];
+    let capRadius = lineOffWidth / 2;
+    let vDisplace = vOffDisplace;
+    if(bitmask.get(start, y)) {
+      capRadius = lineOnWidth / 2;
+      vDisplace = 0;
+    }
+    newShapePathSpec.push('M' + (start + capRadius + margin).toFixed(3) + ' ' + (y + 0.5 + capRadius + vDisplace + margin).toFixed(3));
+    newShapePathSpec.push('a' + capRadius + ' ' + capRadius + ' 0 0 1 0 ' + (capRadius * -2).toFixed(3));
+    newShapePathSpec.push('h' + (0.8 - capRadius).toFixed(3));
+    reversePathSpec.push('h-0.8');
+    for(let x = start + 1; x < end; x++) {
+      let vDelta = (lineOnWidth - lineOffWidth) / 2;
+      if(bitmask.get(x, y) && !bitmask.get(x - 1, y) && !bitmask.get(x + 1, y) && x < end - 1) {
+        newDotPathSpec.push('M' + (x - 0.2 + margin).toFixed(3) + ' ' + (y + 0.5 - lineOffWidth / 2 + vOffDisplace + margin).toFixed(3));
+        newDotPathSpec.push('c0.2 0 0.2 ' + (vDelta * -1 - vOffDisplace).toFixed(3) + ' 0.4 ' + (vDelta * -1 - vOffDisplace).toFixed(3));
+        newDotPathSpec.push('h0.6');
+        newDotPathSpec.push('c0.2 0 0.2 ' + (vDelta + vOffDisplace).toFixed(3) + ' 0.4 ' + (vDelta + vOffDisplace).toFixed(3));
+        newDotPathSpec.push('v' + lineOffWidth);
+        newDotPathSpec.push('c-0.2 0 -0.2 ' + (vDelta - vOffDisplace).toFixed(3) + ' -0.4 ' + (vDelta - vOffDisplace).toFixed(3));
+        newDotPathSpec.push('h-0.6');
+        newDotPathSpec.push('c-0.2 0 -0.2 ' + (vDelta * -1 + vOffDisplace).toFixed(3) + ' -0.4 ' + (vDelta * -1 + vOffDisplace).toFixed(3));
+        newDotPathSpec.push('z');
+        newShapePathSpec.push('v' + lineOffWidth);
+        newShapePathSpec.push(...reversePathSpec.reverse());
+        reversePathSpec = [];
+        newShapePathSpec.push('z');
+        newShapePathSpec.push('M' + (x + 1.2 + margin).toFixed(3) + ' ' + (y + 0.5 + lineOffWidth / 2 + vOffDisplace + margin).toFixed(3));
+        newShapePathSpec.push('v' + (-1 * lineOffWidth));
+        x += 1;
+      } else if(bitmask.get(x, y) && !bitmask.get(x - 1, y)) {
+        newShapePathSpec.push('c0.2 0 0.2 ' + (vDelta * -1 - vOffDisplace).toFixed(3) + ' 0.4 ' + (vDelta * -1 - vOffDisplace).toFixed(3));
+        reversePathSpec.push('c-0.2 0 -0.2 ' + (vDelta * -1 + vOffDisplace).toFixed(3) + ' -0.4 ' + (vDelta * -1 + vOffDisplace).toFixed(3));
+      } else if(!bitmask.get(x, y) && bitmask.get(x - 1, y)) {
+        newShapePathSpec.push('c0.2 0 0.2 ' + (vDelta + vOffDisplace).toFixed(3) + ' 0.4 ' + (vDelta + vOffDisplace).toFixed(3));
+        reversePathSpec.push('c-0.2 0 -0.2 ' + (vDelta - vOffDisplace).toFixed(3) + ' -0.4 ' + (vDelta - vOffDisplace).toFixed(3));
+      } else {
+        newShapePathSpec.push('h0.4');
+        reversePathSpec.push('h-0.4');
+      }
+      newShapePathSpec.push('h0.6');
+      reversePathSpec.push('h-0.6');
+    }
+    newShapePathSpec.push('h0.2');
+    reversePathSpec.push('h-0.2');
+    capRadius = lineOffWidth / 2;
+    if(bitmask.get(end - 1, y)) {
+      capRadius = lineOnWidth / 2;
+    }
+    newShapePathSpec.push('h' + (-1 * capRadius));
+    reversePathSpec.push('h' + capRadius);
+    newShapePathSpec.push('a' + capRadius + ' ' + capRadius + ' 0 0 1 0 ' + (capRadius * 2));
+    newShapePathSpec.push(...reversePathSpec.reverse());
+    newShapePathSpec.push('z');
+    contour.shapes = contour.shapes.concat(newShapePathSpec);
+    contour.dots = contour.dots.concat(newDotPathSpec);
+  }
+  return contour;
 }
 
 // Special case method to calculate contours for the styles
@@ -314,7 +401,7 @@ function calculateTileStyleContour(bitmask, margin, style) {
         }
       }
       if(bitmask.get(x, y)) {
-        let newPathSpec = new Array();
+        let newPathSpec = [];
         if(style == 'dots') {
           newPathSpec.push('M' + (x + margin + 0.5) + ' ' + (y + margin));
           newPathSpec.push('a0.5 0.5 0 0 1 0.5 0.5');
@@ -387,7 +474,7 @@ function calculateTileStyleContour(bitmask, margin, style) {
 // the PDP and assumes it is handled separately.
 function calculateShapeContour(bitmask, margin, style) {
   let contour = new Contour();
-  let corners = new Array();
+  let corners = [];
   let width = bitmask.width + 1;
   let height = bitmask.height + 1;
   for(let y = 0; y < height; y++) {
@@ -466,7 +553,7 @@ function calculateShapeContour(bitmask, margin, style) {
       }
       if(Object.keys(corners[y * width + x]).length == 0) continue;
       let direction = Object.keys(corners[y * width + x])[0];
-      let newPathSpec = new Array();
+      let newPathSpec = [];
       newPathSpec.push('M' + (x + margin) + ' ' + (y + margin));
       let contourX = x;
       let contourY = y;
@@ -550,13 +637,15 @@ function calculateContour(bitmask, margin = 1, style = 'basic') {
       contour.pdpInner.push(...Array(3).fill('v-1'));
       contour.pdpInner.push('z');
     }
-    if(['dots', 'rounded', 'confetti'].includes(style)) {
+    if(['dots', 'rounded', 'confetti', 'scanlines'].includes(style)) {
       contour.pdpInner = makePathSpecRound(contour.pdpInner);
       contour.pdpOuter = makePathSpecRound(contour.pdpOuter);
     }
   }
   let newContour;
-  if(['dots', 'mosaic', 'confetti'].includes(style)) {
+  if(style == 'scanlines') {
+    newContour = calculateHorizontalStyleContour(bitmask, margin, style);
+  } else if(['dots', 'mosaic', 'confetti'].includes(style)) {
     newContour = calculateTileStyleContour(bitmask, margin, style);
   } else {
     newContour = calculateShapeContour(bitmask, margin, style);
@@ -601,7 +690,7 @@ function calculateContour(bitmask, margin = 1, style = 'basic') {
 // outer parts, dots, and other shapes. See a few lines below for
 // the list of valid styles.
 function render(bitmask, renderTarget, style = 'basic') {
-  if(!['basic', 'rounded', 'dots', 'mosaic', 'confetti', 'jitter-light', 'jitter-heavy'].includes(style)) {
+  if(!['basic', 'rounded', 'dots', 'mosaic', 'confetti', 'scanlines', 'jitter-light', 'jitter-heavy'].includes(style)) {
     throw Error('Unsupported render style: ' + style);
   }
   renderTarget.setAttribute('viewBox', '0 0 ' + (bitmask.width + 2) + ' ' + (bitmask.height + 2));
