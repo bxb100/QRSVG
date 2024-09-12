@@ -237,11 +237,11 @@ function compactPathSpec(oldPathSpec) {
   return newPathSpec;
 }
 
-// Special case method to calculate contours for the two styles
+// Special case method to calculate contours for the styles
 // where shapes are not contiguous. This also skips the PDP.
-function calculateDotsOrMosaicContour(bitmask, margin, style) {
-  if(style != 'dots' && style != 'mosaic') {
-    throw Error('Unsupported dots/mosaic render style: ' + style);
+function calculateTileStyleContour(bitmask, margin, style) {
+  if(!['dots', 'mosaic', 'confetti'].includes(style)) {
+    throw Error('Unsupported tiled render style: ' + style);
   }
   let contour = new Contour();
   let prng = new PRNG(1);
@@ -264,8 +264,7 @@ function calculateDotsOrMosaicContour(bitmask, margin, style) {
           newPathSpec.push('a0.5 0.5 0 0 1 -0.5 -0.5');
           newPathSpec.push('a0.5 0.5 0 0 1 0.5 -0.5');
           newPathSpec.push('z');
-        }
-        if(style == 'mosaic') {
+        } else if(style == 'mosaic') {
           // For the mosaic style, we jury-rig a pseudo-random rotation for each pixel.
           let size = 0.9; // relative to grid size
           let maxAngle = Math.PI * 0.03;
@@ -279,6 +278,14 @@ function calculateDotsOrMosaicContour(bitmask, margin, style) {
           newPathSpec.push(('l-' + (size * Math.cos(angle)).toPrecision(3) + ' -' + (size * Math.sin(angle)).toPrecision(3)).replaceAll('--', ''));
           newPathSpec.push(('l' + (size * Math.sin(angle)).toPrecision(3) + ' -' + (size * Math.cos(angle)).toPrecision(3)).replaceAll('--', ''));
           newPathSpec.push('z');
+        } else if(style == 'confetti') {
+          // TODO
+          newPathSpec.push('M' + (x + margin + 0.5) + ' ' + (y + margin));
+          newPathSpec.push('a0.5 0.5 0 0 1 0.5 0.5');
+          newPathSpec.push('a0.5 0.5 0 0 1 -0.5 0.5');
+          newPathSpec.push('a0.5 0.5 0 0 1 -0.5 -0.5');
+          newPathSpec.push('a0.5 0.5 0 0 1 0.5 -0.5');
+          newPathSpec.push('z');
         }
         if(!bitmask.get(x - 1, y) && !bitmask.get(x + 1, y) && !bitmask.get(x, y - 1) && !bitmask.get(x, y + 1)) {
           contour.dots = contour.dots.concat(newPathSpec);
@@ -291,7 +298,7 @@ function calculateDotsOrMosaicContour(bitmask, margin, style) {
   return contour;
 }
 
-// For styles other than `dots` or `mosaic`, this method traces along
+// For styles that do not use individual tiles, this method traces along
 // contiguous shapes in the bitmask and builds a contour. Still skips
 // the PDP and assumes it is handled separately.
 function calculateShapeContour(bitmask, margin, style) {
@@ -429,8 +436,8 @@ function calculateShapeContour(bitmask, margin, style) {
 
 // Overarching method that turns a 2D bitmask into a set of contour pathspecs.
 // `margin` is an offset that is added to all x and y coordinates in the output.
-// output. It defaults to 1 to accommodate jitter and mosaic styles that have
-// elements randomly extending slightly outside of the basic QR code area.
+// It defaults to 1 to accommodate jitter and mosaic styles that have elements
+// randomly extending slightly outside of the basic QR code area.
 function calculateContour(bitmask, margin = 1, style = 'basic') {
   let contour = new Contour();
   if(bitmask.width > 16 && bitmask.height > 16) {
@@ -465,8 +472,8 @@ function calculateContour(bitmask, margin = 1, style = 'basic') {
     }
   }
   let newContour;
-  if(style == 'dots' || style == 'mosaic') {
-    newContour = calculateDotsOrMosaicContour(bitmask, margin, style);
+  if(['dots', 'mosaic', 'confetti'].includes(style)) {
+    newContour = calculateTileStyleContour(bitmask, margin, style);
   } else {
     newContour = calculateShapeContour(bitmask, margin, style);
   }
@@ -510,7 +517,7 @@ function calculateContour(bitmask, margin = 1, style = 'basic') {
 // outer parts, dots, and other shapes. See a few lines below for
 // the list of valid styles.
 function render(bitmask, renderTarget, style = 'basic') {
-  if(!['basic', 'rounded', 'dots', 'mosaic', 'jitter-light', 'jitter-heavy'].includes(style)) {
+  if(!['basic', 'rounded', 'dots', 'mosaic', 'confetti', 'jitter-light', 'jitter-heavy'].includes(style)) {
     throw Error('Unsupported render style: ' + style);
   }
   renderTarget.setAttribute('viewBox', '0 0 ' + (bitmask.width + 2) + ' ' + (bitmask.height + 2));
@@ -532,7 +539,7 @@ qrsvg['PRNG'] = PRNG;
 qrsvg['makePathSpecRound'] = makePathSpecRound;
 qrsvg['addJitterToPathSpec'] = addJitterToPathSpec;
 qrsvg['compactPathSpec'] = compactPathSpec;
-qrsvg['calculateDotsOrMosaicContour'] = calculateDotsOrMosaicContour;
+qrsvg['calculateTileStyleContour'] = calculateTileStyleContour;
 qrsvg['calculateShapeContour'] = calculateShapeContour;
 qrsvg['calculateContour'] = calculateContour;
 qrsvg['render'] = render;
